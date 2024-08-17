@@ -20,6 +20,7 @@
 
 #include "pauli_decomposition.h"
 
+#include <string>
 #include <Python.h>
 #include <numpy/arrayobject.h>
 
@@ -41,7 +42,7 @@ static PyObject* wrapper_pauli_coefficients(PyObject* self, PyObject* args){
 
     PyArrayObject* in = (PyArrayObject*) in_m;
 
-    double complex* pin = (double complex*)PyArray_DATA(in);
+    std::complex<double>* pin = (std::complex<double>*)PyArray_DATA(in);
     uint32_t dim = PyArray_DIMS(in)[0];
     
     pauli_coefficients(dim, pin);
@@ -65,7 +66,7 @@ static PyObject* wrapper_inverse_pauli_decomposition(PyObject* self, PyObject* a
 
     PyArrayObject* in = (PyArrayObject*) in_m;
 
-    double complex* pin = (double complex*)PyArray_DATA(in);
+    std::complex<double>* pin = (std::complex<double>*)PyArray_DATA(in);
     uint32_t dim = PyArray_DIMS(in)[0];
 
     inverse_pauli_decomposition(dim, pin);
@@ -130,10 +131,11 @@ static PyObject* wrapper_pauli_string_ij(PyObject* self, PyObject* args){
     if (!PyArg_ParseTuple(args, "III", &i, &j, &num_qubits))
         return NULL;
 
-    char out_str[num_qubits+1];
-    pauli_string_ij(i, j, num_qubits, out_str);
+    std::vector<char> out_str(num_qubits);
+    pauli_string_ij(i, j, out_str);
 
-    PyObject* py_str = PyUnicode_FromString(out_str);
+    std::string out_str_as_string(out_str.begin(), out_str.end());
+    PyObject* py_str = PyUnicode_FromString(out_str_as_string.c_str());
     if (!py_str) {
         return NULL;
     }
@@ -160,7 +162,7 @@ static PyObject* wrapper_pauli_coefficients_lexicographic_order(PyObject* self, 
     PyArrayObject* in = (PyArrayObject*) in_m;
 
 
-    double complex* pin = (double complex*)PyArray_DATA(in);
+    std::complex<double>* pin = (std::complex<double>*)PyArray_DATA(in);
     uint32_t dim = PyArray_DIMS(in)[0];
     
     uint32_t num_qubits = 0;
@@ -214,7 +216,7 @@ static PyObject* pauli_coefficients_xz_phase(PyObject* self, PyObject* args){
     PyArrayObject* array_z = (PyArrayObject*) in_z;
     PyArrayObject* array_phase = (PyArrayObject*) in_phase;
 
-    double complex* pin = (double complex*)PyArray_DATA(in);
+    std::complex<double>* pin = (std::complex<double>*)PyArray_DATA(in);
     uint8_t* xp = (uint8_t*) PyArray_DATA(array_x);
     uint8_t* zp = (uint8_t*) PyArray_DATA(array_z);
     uint8_t* phasep = (uint8_t*) PyArray_DATA(array_phase);
@@ -224,7 +226,7 @@ static PyObject* pauli_coefficients_xz_phase(PyObject* self, PyObject* args){
     uint32_t i, j, n;
     for(j = 0; j < dim; j++){
         for(i = 0; i < dim; i++){
-           *phasep++ = __builtin_popcount(i&j) & 0b11;
+           *phasep++ = _mm_popcnt_u32(i&j) & 0b11;
            for (n = 0; n < num_qubits; n++) {
                *xp++ = (uint8_t) (j >> n) & 0b1;
                *zp++ = (uint8_t) (i >> n) & 0b1;

@@ -15,11 +15,11 @@
 // TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-
-#include <complex.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <complex>
+#include <cstdint>
+#include <algorithm>
+#include <vector>
+#include <intrin.h>
 
 // Decompositions of matrices into Pauli strings.
 //
@@ -37,18 +37,19 @@ static inline uint64_t interleave_uint32_with_zeros(uint32_t input)  {
     return word;
 }
 
-static inline void pauli_coefficients(uint32_t dim, double complex *data) {
+static inline void pauli_coefficients(uint32_t dim, std::complex<double> *data) {
     // Computes coefficients of Pauli decomposition.
     // O(dim^2 log dim) time complexity, O(1) space overhead
     // Parameters:
     //    dim - dimension of the matrix, 2**num_qubits
-    //    data - dim x dim matrix (pointer to double complex)
+    //    data - dim x dim matrix (pointer to std::complex<double>)
     // Output:
     //    data - Pauli coefficients are written into data
     
     uint32_t i, j, hf;
-    double complex v;
-    double complex *a, *b;
+    std::complex<double> v;
+    std::complex<double> *a, *b;
+    std::complex<double> I(0, 1);
 
     // XOR transform
     b = data;
@@ -82,7 +83,7 @@ static inline void pauli_coefficients(uint32_t dim, double complex *data) {
 
         for(i = 0; i < dim; i++) {
             // Power of i factors
-            switch((uint8_t) (__builtin_popcount(i&j) & 0b11)){
+            switch((uint8_t) (_mm_popcnt_u32(i&j) & 0b11)){
                 case 1:
                     *data *= -I;
                     break;
@@ -99,19 +100,19 @@ static inline void pauli_coefficients(uint32_t dim, double complex *data) {
     }
 }
 
-static inline void pauli_coefficients_lexicographic_order(uint32_t num_qubits, double complex *data) {
+static inline void pauli_coefficients_lexicographic_order(uint32_t num_qubits, std::complex<double> *data) {
     // Computes coefficients of Pauli decomposition, in lexicographic order.
     // Parameters:
     //    num_qubits -- number of qubits.
-    //    data - dim x dim matrix (pointer to double complex)
+    //    data - dim x dim matrix (pointer to std::complex<double>)
     // Output:
     //    data - Pauli coefficients are written into data in lexicographic order
 
-    uint64_t dim = 1;
+    uint32_t dim = 1;
     dim <<= num_qubits;
 
-    double complex *tmp = malloc((dim << num_qubits) * sizeof(double complex));
-    memcpy(tmp, data, (dim << num_qubits) * sizeof(double complex));
+    std::complex<double> *tmp = new std::complex<double>[(dim << num_qubits)];
+    std::copy_n(data, (dim << num_qubits), tmp);
 
     pauli_coefficients(dim, tmp);
     
@@ -122,29 +123,30 @@ static inline void pauli_coefficients_lexicographic_order(uint32_t num_qubits, d
             data[id] = tmp[(j << num_qubits) + i];
         }
     }
-    free(tmp);
+    delete[] tmp;
 }
 
-static inline void pauli_string_lexicographic_order(uint32_t id, int num_qubits, char *out) {
+static inline void pauli_string_lexicographic_order(uint64_t id, std::vector<char>& out) {
     // Computes the Pauli string corresponding to the id'th coefficient in lexicographic order
     // Parameters:
     //     id - integer specifying the required string
     //     num_qubits - integer for number of qubits
     // Output:
     //     out - char string with at least num_qubits+1 characters allocated
+    size_t num_qubits = out.size();
 
-    for(num_qubits--; num_qubits >= 0; num_qubits--) {
-        switch(id >> (2*num_qubits) & 0b11) {
-            case 0: *out++ = 'I'; break;
-            case 1: *out++ = 'X'; break;
-            case 2: *out++ = 'Y'; break;
-            case 3: *out++ = 'Z'; break;
+    for(char& _out :out) {
+        num_qubits --;
+        switch((id >> (2 * num_qubits)) & 0b11) {
+            case 0: _out = 'I'; break;
+            case 1: _out = 'X'; break;
+            case 2: _out = 'Y'; break;
+            case 3: _out = 'Z'; break;
         }
     }
-    *out = '\0';
 }
 
-static inline void pauli_string_ij(uint32_t i, uint32_t j, uint32_t num_qubits, char *out) {
+static inline void pauli_string_ij(uint32_t i, uint32_t j, std::vector<char>& out) {
     // Computes the Pauli string corresponding to the (i,j)'th coefficient
     // Parameters:
     //     i, j - integers specifying the required string
@@ -153,28 +155,29 @@ static inline void pauli_string_ij(uint32_t i, uint32_t j, uint32_t num_qubits, 
     //     out - char string with at least num_qubits+1 characters allocated
     
     uint64_t id = interleave_uint32_with_zeros(i^j) | (interleave_uint32_with_zeros(j) << 1);
-    pauli_string_lexicographic_order(id, num_qubits, out);
+    pauli_string_lexicographic_order(id, out);
 }
 
-static inline void inverse_pauli_decomposition(uint32_t dim, double complex *data) {
+static inline void inverse_pauli_decomposition(uint32_t dim, std::complex<double> *data) {
     // Computes inverse Pauli decomposition.
     // O(dim^2 log dim) time complexity, O(1) space overhead
     // Parameters:
     //    dim - dimension of the matrix, 2**num_qubits
-    //    data - dim x dim matrix (pointer to double complex)
+    //    data - dim x dim matrix (pointer to std::complex<double>)
     // Output:
     //    data - Pauli coefficients are written into data
 
     uint32_t i, j, hf;
-    double complex v;
-    double complex *a, *b, *c;
+    std::complex<double> v;
+    std::complex<double> *a, *b, *c;
+    std::complex<double> I(0, 1);
 
 
     a = data;
     // Power of i factors
     for(j = 0; j < dim; j++) {
         for(i = 0; i < dim; i++) {
-            switch((uint8_t) (__builtin_popcount(i&j) & 0b11)){
+            switch((uint8_t) (_mm_popcnt_u32(i&j) & 0b11)){
                 case 1:
                     *a *= I;
                     break;
