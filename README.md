@@ -1,4 +1,4 @@
-# Pauli LCU
+# Pauli LCU (forked to compatible with MSVC)
 
 Pauli LCU is a package for calculating the Pauli Decomposition of a complex matrix $`A=\{a_{r,s}\}_{r,s=0}^{2^{n}-1}`$:
 
